@@ -3,7 +3,7 @@
  * Cache-first strategy للملفات الأساسية لضمان العمل دون اتصال.
  */
 
-const VERSION = "v1";
+const VERSION = "v2";
 const CACHE = "gold-ledger-" + VERSION;
 
 const CORE_ASSETS = [
@@ -16,6 +16,15 @@ const CORE_ASSETS = [
   "./js/utils.js",
   "./js/pages/home.js",
   "./js/pages/daily.js",
+  "./js/pages/_party.js",
+  "./js/pages/suppliers.js",
+  "./js/pages/customers.js",
+  "./js/pages/bank-cash.js",
+  "./js/pages/expenses.js",
+  "./js/pages/advances.js",
+  "./js/pages/inventory.js",
+  "./js/pages/reports.js",
+  "./js/pages/settings.js",
   "./icons/icon.svg",
 ];
 

@@ -104,4 +104,80 @@ export const LABELS = {
   payment: { cash: "نقداً", bank: "بنك/شبكة", credit: "آجل" },
   goldKarats: ["24", "22", "21", "18"],
   silverPurities: ["999", "925"],
+  accountType: { bank: "بنكي", cash: "صندوق نقدي" },
+  bankTxType: { deposit: "إيداع", withdraw: "سحب", transfer: "تحويل" },
+  expenseCats: ["إيجار", "رواتب", "كهرباء", "ماء", "اتصالات", "صيانة", "تسويق", "نقل", "ضيافة", "أخرى"],
+  advanceKind: { employee: "موظف", customer: "عميل", other: "أخرى" },
+  inventoryStatus: { available: "متوفر", reserved: "محجوز", sold: "مُباع" },
+  partyTxType: {
+    supplier: { in: "شراء آجل (يزيد المستحق له)", out: "دفعة له" },
+    customer: { in: "بيع آجل (يزيد المستحق علينا)", out: "دفعة منه" },
+  },
 };
+
+/* ===== Month helpers ===== */
+const fmtMonth = new Intl.DateTimeFormat("ar-SA-u-ca-gregory", { year: "numeric", month: "long" });
+export function thisMonthISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+}
+export function thisYearISO() { return String(new Date().getFullYear()); }
+export function formatMonthLong(yyyymm) {
+  if (!yyyymm) return "";
+  const [y, m] = yyyymm.split("-").map(Number);
+  return fmtMonth.format(new Date(y, m-1, 1));
+}
+
+/* ===== Modal helper ===== */
+export function openModal(title, contentBuilder, { onSave, saveLabel = "حفظ" } = {}) {
+  const modal = el("div", { class: "modal open" });
+  const body = el("div", { class: "modal-body" });
+  const close = () => modal.remove();
+  body.appendChild(el("div", { class: "modal-head" }, [
+    el("h3", {}, title),
+    el("button", { class: "icon-btn", onclick: close }, "✕"),
+  ]));
+  const content = el("div", { class: "modal-content" });
+  body.appendChild(content);
+  contentBuilder(content);
+  if (onSave) {
+    body.appendChild(el("div", { class: "modal-foot" }, [
+      el("button", { class: "btn btn-primary", onclick: () => { if (onSave() !== false) close(); } }, saveLabel),
+      el("button", { class: "btn btn-ghost", onclick: close }, "إلغاء"),
+    ]));
+  } else {
+    body.appendChild(el("div", { class: "modal-foot" }, [
+      el("button", { class: "btn btn-ghost", onclick: close }, "إغلاق"),
+    ]));
+  }
+  modal.appendChild(body);
+  document.body.appendChild(modal);
+  return { close, content };
+}
+
+/* ===== Field wrap ===== */
+export function field(label, control, hint) {
+  return el("div", { class: "field" }, [
+    el("label", {}, label),
+    control,
+    hint ? el("small", { class: "text-mute" }, hint) : null,
+  ]);
+}
+
+/* ===== Empty state ===== */
+export function emptyState(icon, title, hint) {
+  return el("div", { class: "ledger-wrap empty-state" }, [
+    el("div", { class: "big" }, icon || "📭"),
+    el("div", {}, title),
+    hint ? el("div", { class: "muted", style: "margin-top:6px" }, hint) : null,
+  ]);
+}
+
+/* ===== Page header ===== */
+export function pageHead(kicker, title, subtitle) {
+  return el("div", { class: "page-head" }, [
+    el("span", { class: "page-kicker" }, kicker),
+    el("h1", { class: "page-title" }, title),
+    subtitle ? el("p", { class: "page-subtitle" }, subtitle) : null,
+  ]);
+}

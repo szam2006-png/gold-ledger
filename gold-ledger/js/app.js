@@ -10,17 +10,27 @@ import { initDb, storageStats } from "./db.js";
 import { $, $$, formatDateLong, todayISO } from "./utils.js";
 import { renderHome } from "./pages/home.js";
 import { renderDaily } from "./pages/daily.js";
+import { renderSuppliers } from "./pages/suppliers.js";
+import { renderCustomers } from "./pages/customers.js";
+import { renderBankCash } from "./pages/bank-cash.js";
+import { renderExpenses } from "./pages/expenses.js";
+import { renderAdvances } from "./pages/advances.js";
+import { renderInventory } from "./pages/inventory.js";
+import { renderReports } from "./pages/reports.js";
+import { renderSettings } from "./pages/settings.js";
 
 /* ===== Routes ===== */
 const routes = {
-  "/":        { title: "الرئيسية",     render: renderHome },
-  "/daily":   { title: "دفتر اليومية", render: renderDaily },
-  // Future:
-  // "/suppliers": ...
-  // "/bank-cash": ...
-  // "/expenses":  ...
-  // "/advances":  ...
-  // "/inventory": ...
+  "/":          { title: "الرئيسية",            render: renderHome },
+  "/daily":     { title: "دفتر اليومية",        render: renderDaily },
+  "/suppliers": { title: "دفتر الموردين",        render: renderSuppliers },
+  "/customers": { title: "دفتر العملاء",         render: renderCustomers },
+  "/bank-cash": { title: "دفتر البنك والصندوق",  render: renderBankCash },
+  "/expenses":  { title: "دفتر المصاريف",        render: renderExpenses },
+  "/advances":  { title: "دفتر السلف",           render: renderAdvances },
+  "/inventory": { title: "دفتر المخزون",         render: renderInventory },
+  "/reports":   { title: "التقارير",             render: renderReports },
+  "/settings":  { title: "الإعدادات",            render: renderSettings },
 };
 
 function parseRoute() {
@@ -77,10 +87,9 @@ function renderStorageInfo() {
 /* ===== Service Worker ===== */
 function registerSW() {
   if (!("serviceWorker" in navigator)) return;
-  // Only register over https or localhost
   const proto = location.protocol;
   if (proto !== "https:" && location.hostname !== "localhost" && proto !== "file:") return;
-  if (proto === "file:") return; // file:// does not support SW
+  if (proto === "file:") return;
   navigator.serviceWorker
     .register("sw.js")
     .catch(err => console.warn("SW registration failed:", err));
@@ -92,19 +101,14 @@ function boot() {
   renderHeaderDate();
   renderStorageInfo();
 
-  // Bind nav events
   $("#menuBtn")?.addEventListener("click", openSidebar);
   $("#closeSidebar")?.addEventListener("click", closeSidebar);
   $("#sidebarBackdrop")?.addEventListener("click", closeSidebar);
 
-  // Router
   window.addEventListener("hashchange", navigate);
   navigate();
 
-  // Refresh storage info every 15s
   setInterval(renderStorageInfo, 15000);
-
-  // Register SW
   registerSW();
 }
 
