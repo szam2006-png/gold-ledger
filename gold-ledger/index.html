@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <meta name="theme-color" content="#1a1a1a" />
+  <meta name="description" content="دفتر مدير الفرع — نظام محاسبة لمحلات الذهب والفضة" />
+
+  <title>دفتر مدير الفرع</title>
+
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+
+  <!-- Google Fonts: Reem Kufi (display) + Tajawal (body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@400;500;600;700&family=Tajawal:wght@300;400;500;700;900&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+  <!-- App shell -->
+  <div id="app">
+    <header class="app-header">
+      <div class="header-inner">
+        <button class="menu-btn" id="menuBtn" aria-label="القائمة">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
+        <a href="#/" class="brand">
+          <span class="brand-mark">د</span>
+          <span class="brand-text">
+            <strong>دفتر مدير الفرع</strong>
+            <small>محلات الذهب والفضة</small>
+          </span>
+        </a>
+        <div class="header-date" id="headerDate"></div>
+      </div>
+    </header>
+
+    <aside class="sidebar" id="sidebar" aria-hidden="true">
+      <div class="sidebar-head">
+        <span>الدفاتر</span>
+        <button class="icon-btn" id="closeSidebar" aria-label="إغلاق">✕</button>
+      </div>
+      <nav class="sidebar-nav" id="sidebarNav">
+        <a href="#/" data-route="/">
+          <span class="nav-ico">⌂</span> الصفحة الرئيسية
+        </a>
+        <a href="#/daily" data-route="/daily">
+          <span class="nav-ico">📓</span> دفتر اليومية
+        </a>
+        <a href="#/suppliers" data-route="/suppliers" class="disabled">
+          <span class="nav-ico">👥</span> دفتر الموردين <em>قريباً</em>
+        </a>
+        <a href="#/bank-cash" data-route="/bank-cash" class="disabled">
+          <span class="nav-ico">🏦</span> دفتر البنك والصندوق <em>قريباً</em>
+        </a>
+        <a href="#/expenses" data-route="/expenses" class="disabled">
+          <span class="nav-ico">🧾</span> دفتر المصاريف <em>قريباً</em>
+        </a>
+        <a href="#/advances" data-route="/advances" class="disabled">
+          <span class="nav-ico">💰</span> دفتر السلف <em>قريباً</em>
+        </a>
+        <a href="#/inventory" data-route="/inventory" class="disabled">
+          <span class="nav-ico">📦</span> دفتر المخزون <em>قريباً</em>
+        </a>
+      </nav>
+      <div class="sidebar-foot">
+        <div class="storage-info" id="storageInfo"></div>
+      </div>
+    </aside>
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+    <main class="app-main" id="view">
+      <!-- Page content renders here -->
+    </main>
+
+    <div class="toast" id="toast" aria-live="polite"></div>
+  </div>
+
+  <!-- Scripts: classic modules, no build step -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
