@@ -16,7 +16,7 @@ const CORE_ASSETS = [
   "./js/utils.js",
   "./js/pages/home.js",
   "./js/pages/daily.js",
-  "./js/pages/_party.js",
+  "./js/pages/party.js",
   "./js/pages/suppliers.js",
   "./js/pages/customers.js",
   "./js/pages/bank-cash.js",
