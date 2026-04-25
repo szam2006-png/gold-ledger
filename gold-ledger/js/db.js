@@ -71,7 +71,14 @@ export function initDb() {
       tax_no:    "",
       currency:  "ر.س",
       invoice_seq: 1000,
+      opening_cash: 0,
+      opening_bank: 0,
     });
+  } else {
+    const s = read(keys.settings, {});
+    if (s.opening_cash === undefined) s.opening_cash = 0;
+    if (s.opening_bank === undefined) s.opening_bank = 0;
+    write(keys.settings, s);
   }
   // Default bank/cash accounts
   if (read(keys.bankCash, null) === null) {
@@ -129,7 +136,14 @@ export const settings = {
   },
 };
 
-/* ===== Daily Ledger ===== */
+/* ===== Daily Ledger — ورقة المدير (مبيعات + شراء كسر) =====
+ * كل سطر:
+ *   { id, date, time, type: "sale"|"purchase", amount,
+ *     gold_18, gold_21, gold_22, gold_24,
+ *     silver_925, silver_999,
+ *     payment_method: "cash"|"network",
+ *     note }
+ */
 const dailyStore = makeStore(keys.daily);
 export const daily = {
   all() { return dailyStore.all(); },
@@ -142,33 +156,63 @@ export const daily = {
   byRange(fromISO, toISO) {
     return this.all().filter(e => e.date >= fromISO && e.date <= toISO);
   },
-  add(entry) { return dailyStore.add(entry); },
+  salesByDate(dateStr)     { return this.byDate(dateStr).filter(e => e.type === "sale"); },
+  purchasesByDate(dateStr) { return this.byDate(dateStr).filter(e => e.type === "purchase"); },
+  add(entry) {
+    return dailyStore.add({
+      date: entry.date,
+      time: entry.time,
+      type: entry.type,                            // "sale" | "purchase"
+      amount: num(entry.amount),
+      gold_18: num(entry.gold_18),
+      gold_21: num(entry.gold_21),
+      gold_22: num(entry.gold_22),
+      gold_24: num(entry.gold_24),
+      silver_925: num(entry.silver_925),
+      silver_999: num(entry.silver_999),
+      payment_method: entry.payment_method || "cash", // "cash" | "network"
+      note: entry.note || "",
+    });
+  },
   update(id, patch) { return dailyStore.update(id, patch); },
   remove(id) { dailyStore.remove(id); },
+  /** ملخص اليوم: مبالغ ونسب وأوزان كاملة لكل عيار */
   summaryForDate(dateStr) {
-    const entries = this.byDate(dateStr);
-    const sum = {
-      gold:   { 18:  emptyForm(), 21: emptyForm(), 22: emptyForm(), 24: emptyForm() },
-      silver: { 925: emptyForm(), 999: emptyForm() },
-      cash:   { in: 0, out: 0 },
+    const sales     = this.salesByDate(dateStr);
+    const purchases = this.purchasesByDate(dateStr);
+    const sumAmount = (rows) => rows.reduce((s,r) => s + num(r.amount), 0);
+    const sumByPay  = (rows, pm) => rows.filter(r => r.payment_method === pm)
+                                        .reduce((s,r) => s + num(r.amount), 0);
+    const sumKarat  = (rows, k) => rows.reduce((s,r) => s + num(r["gold_" + k]), 0);
+    const sumSilver = (rows, p) => rows.reduce((s,r) => s + num(r["silver_" + p]), 0);
+
+    const salesTotal     = sumAmount(sales);
+    const salesCash      = sumByPay(sales, "cash");
+    const salesNetwork   = sumByPay(sales, "network");
+    const purchasesTotal = sumAmount(purchases);
+    const purchasesCash  = sumByPay(purchases, "cash");
+    const purchasesNet   = sumByPay(purchases, "network");
+
+    return {
+      sales: {
+        total: salesTotal,
+        cash: salesCash,
+        network: salesNetwork,
+        cashPct: salesTotal ? (salesCash    / salesTotal) * 100 : 0,
+        netPct:  salesTotal ? (salesNetwork / salesTotal) * 100 : 0,
+        gold:   { 18: sumKarat(sales, 18), 21: sumKarat(sales, 21), 22: sumKarat(sales, 22), 24: sumKarat(sales, 24) },
+        silver: { 925: sumSilver(sales, 925), 999: sumSilver(sales, 999) },
+        count: sales.length,
+      },
+      purchases: {
+        total: purchasesTotal,
+        cash: purchasesCash,
+        network: purchasesNet,
+        gold:   { 18: sumKarat(purchases, 18), 21: sumKarat(purchases, 21), 22: sumKarat(purchases, 22), 24: sumKarat(purchases, 24) },
+        silver: { 925: sumSilver(purchases, 925), 999: sumSilver(purchases, 999) },
+        count: purchases.length,
+      },
     };
-    for (const e of entries) {
-      if (e.category === "gold") {
-        const g = sum.gold[e.karat]; if (!g) continue;
-        const slot = g[e.form]; if (!slot) continue;
-        if (e.flow === "in") { slot.in_w  += num(e.weight); slot.in_amt  += num(e.total); }
-        else                  { slot.out_w += num(e.weight); slot.out_amt += num(e.total); }
-      } else if (e.category === "silver") {
-        const s = sum.silver[e.karat]; if (!s) continue;
-        const slot = s[e.form]; if (!slot) continue;
-        if (e.flow === "in") { slot.in_w  += num(e.weight); slot.in_amt  += num(e.total); }
-        else                  { slot.out_w += num(e.weight); slot.out_amt += num(e.total); }
-      } else if (e.category === "cash") {
-        if (e.flow === "in") sum.cash.in  += num(e.total);
-        else                  sum.cash.out += num(e.total);
-      }
-    }
-    return sum;
   },
   overall() {
     const all = this.all();
@@ -180,11 +224,6 @@ export const daily = {
     };
   }
 };
-
-function emptyForm() {
-  const slot = () => ({ in_w: 0, out_w: 0, in_amt: 0, out_amt: 0 });
-  return { worked: slot(), broken: slot(), pure: slot() };
-}
 
 /* ===== Suppliers / Customers (مع رصيد جاري) ===== */
 function makePartyStore(storeKey) {
@@ -492,6 +531,31 @@ export const dailyMeta = {
   reopen(date) {
     return this.upsert(date, { closed: false, closed_at: null });
   },
+  /** آخر يوم مقفل قبل تاريخ معيّن */
+  lastClosedBefore(date) {
+    return this.all()
+      .filter(m => m.closed && m.date < date)
+      .sort((a, b) => b.date.localeCompare(a.date))[0] || null;
+  },
+  /** الرصيد المتوقع للصندوق والبنك في تاريخ معيّن */
+  expectedFor(date) {
+    const sett = settings.get();
+    const last = this.lastClosedBefore(date);
+    const startCash = last ? num(last.cash_actual) : num(sett.opening_cash);
+    const startBank = last ? num(last.bank_actual) : num(sett.opening_bank);
+    const sum = daily.summaryForDate(date);
+    const expCash = expenses.byDailyDate(date)
+      .filter(e => e.payment_method === "cash")
+      .reduce((s, e) => s + num(e.amount), 0);
+    const expBank = expenses.byDailyDate(date)
+      .filter(e => e.payment_method === "bank" || e.payment_method === "network")
+      .reduce((s, e) => s + num(e.amount), 0);
+    return {
+      cash: startCash + sum.sales.cash    - sum.purchases.cash    - expCash,
+      bank: startBank + sum.sales.network - sum.purchases.network - expBank,
+      startCash, startBank,
+    };
+  },
 };
 
 /* ===== Consignments (دفتر العهد) ===== */
@@ -609,25 +673,43 @@ export const reports = {
   },
   dailyTotals(fromISO, toISO) {
     const list = daily.byRange(fromISO, toISO);
-    let cashIn = 0, cashOut = 0;
+    let salesTotal = 0, salesCash = 0, salesNetwork = 0;
+    let purchasesTotal = 0, purchasesCash = 0, purchasesNetwork = 0;
     let goldInW = 0, goldOutW = 0, silverInW = 0, silverOutW = 0;
-    let bankIn = 0, bankOut = 0, creditIn = 0, creditOut = 0;
     for (const e of list) {
-      const t = num(e.total), w = num(e.weight);
-      if (e.category === "gold")   { (e.flow === "in" ? goldInW : (goldOutW)); if (e.flow==="in") goldInW+=w; else goldOutW+=w; }
-      if (e.category === "silver") { if (e.flow==="in") silverInW+=w; else silverOutW+=w; }
-      if (e.payment_method === "cash")   { e.flow==="in" ? cashIn   += t : cashOut   += t; }
-      if (e.payment_method === "bank")   { e.flow==="in" ? bankIn   += t : bankOut   += t; }
-      if (e.payment_method === "credit") { e.flow==="in" ? creditIn += t : creditOut += t; }
+      const a = num(e.amount);
+      const gw = num(e.gold_18) + num(e.gold_21) + num(e.gold_22) + num(e.gold_24);
+      const sw = num(e.silver_925) + num(e.silver_999);
+      if (e.type === "sale") {
+        salesTotal += a;
+        if (e.payment_method === "network") salesNetwork += a; else salesCash += a;
+        goldOutW += gw;
+        silverOutW += sw;
+      } else if (e.type === "purchase") {
+        purchasesTotal += a;
+        if (e.payment_method === "network") purchasesNetwork += a; else purchasesCash += a;
+        goldInW += gw;
+        silverInW += sw;
+      }
     }
-    return { count: list.length, cashIn, cashOut, bankIn, bankOut, creditIn, creditOut, goldInW, goldOutW, silverInW, silverOutW };
+    return {
+      count: list.length,
+      // legacy aliases (لتوافق التقارير القديمة)
+      cashIn: salesCash, cashOut: purchasesCash,
+      bankIn: salesNetwork, bankOut: purchasesNetwork,
+      creditIn: 0, creditOut: 0,
+      // new fields
+      salesTotal, salesCash, salesNetwork,
+      purchasesTotal, purchasesCash, purchasesNetwork,
+      goldInW, goldOutW, silverInW, silverOutW,
+    };
   },
   /** ربح تقريبي = (مبيعات - مشتريات) - مصاريف الشهر */
   monthProfit(yyyymm) {
     const r = this.monthRange(yyyymm);
     const t = this.dailyTotals(r.from, r.to);
-    const sales      = t.cashIn + t.bankIn + t.creditIn;
-    const purchases  = t.cashOut + t.bankOut + t.creditOut;
+    const sales      = t.salesTotal;
+    const purchases  = t.purchasesTotal;
     const exp        = expenses.monthTotal(yyyymm);
     return { sales, purchases, expenses: exp, net: sales - purchases - exp };
   }

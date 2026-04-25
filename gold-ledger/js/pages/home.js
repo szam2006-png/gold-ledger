@@ -2,7 +2,7 @@
  * pages/home.js — الصفحة الرئيسية (Dashboard)
  */
 
-import { daily, exportAll, importAll, storageStats } from "../db.js";
+import { daily, expenses, exportAll, importAll, storageStats } from "../db.js";
 import { el, money, num, todayISO, formatDateLong, toast, $ } from "../utils.js";
 
 export function renderHome(container) {
@@ -19,36 +19,18 @@ export function renderHome(container) {
   container.appendChild(buildBackupCard());
 }
 
-/* ---------- KPIs ---------- */
+/* ---------- KPIs (تشغيلية: مبيعات/مشتريات/مصاريف اليوم) ---------- */
 function buildKPIs() {
   const today = todayISO();
   const sum = daily.summaryForDate(today);
-  const overall = daily.overall();
-
-  // Gold totals across karats+forms (weight)
-  let goldIn = 0, goldOut = 0;
-  for (const k of ["18", "21", "22", "24"]) {
-    for (const f of ["worked", "broken", "pure"]) {
-      goldIn  += sum.gold[k][f].in_w;
-      goldOut += sum.gold[k][f].out_w;
-    }
-  }
-  // Silver totals
-  let silverIn = 0, silverOut = 0;
-  for (const k of ["925", "999"]) {
-    for (const f of ["worked", "broken", "pure"]) {
-      silverIn  += sum.silver[k][f].in_w;
-      silverOut += sum.silver[k][f].out_w;
-    }
-  }
-  const cashNet = sum.cash.in - sum.cash.out;
+  const expSum = expenses.dayTotal(today);
 
   const wrap = el("div", { class: "kpi-row" });
   wrap.append(
-    kpi("قيود اليوم", overall.todayEntries, "قيد"),
-    kpi("ذهب اليوم (صافي)", (goldIn - goldOut >= 0 ? "+" : "") + num(goldIn - goldOut), "جرام"),
-    kpi("فضة اليوم (صافي)", (silverIn - silverOut >= 0 ? "+" : "") + num(silverIn - silverOut), "جرام"),
-    kpiMoney("صافي نقد اليوم", cashNet),
+    kpiMoney("مبيعات اليوم", sum.sales.total, "val-pos"),
+    kpiMoney("مشتريات اليوم", sum.purchases.total, "val-neg"),
+    kpiMoney("مصاريف اليوم", expSum, "val-neg"),
+    kpi("عدد العمليات", String(sum.sales.count + sum.purchases.count), "بيع/شراء"),
   );
   return wrap;
 }
@@ -60,12 +42,11 @@ function kpi(label, value, hint) {
     hint ? el("div", { class: "kpi-hint" }, hint) : null,
   ]);
 }
-function kpiMoney(label, value) {
-  const cls = value > 0 ? "val-pos" : value < 0 ? "val-neg" : "";
+function kpiMoney(label, value, forceCls) {
+  const cls = forceCls || (value > 0 ? "val-pos" : value < 0 ? "val-neg" : "");
   return el("div", { class: "kpi" }, [
     el("div", { class: "kpi-label" }, label),
-    el("div", { class: "kpi-value " + cls },
-      (value >= 0 ? "+" : "") + money(value)),
+    el("div", { class: "kpi-value " + cls }, money(value)),
   ]);
 }
 
