@@ -1,8 +1,8 @@
 /**
- * pages/_party.js — صفحة مشتركة للموردين والعملاء
- * يستخدمها suppliers.js و customers.js
+ * pages/party.js — صفحة الموردين
+ * يستخدمها suppliers.js
  */
-import { suppliers, customers } from "../db.js";
+import { suppliers } from "../db.js";
 import {
   $, el, money, todayISO, toast, confirmAsk, openModal, field,
   emptyState, pageHead, LABELS,
@@ -13,7 +13,7 @@ let state = { kind: "supplier", selectedId: null };
 export function renderParty(container, { kind }) {
   state.kind = kind;
   state.selectedId = null;
-  const store = kind === "supplier" ? suppliers : customers;
+  const store = suppliers;
 
   container.innerHTML = "";
   container.appendChild(pageHead(

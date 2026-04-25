@@ -11,13 +11,14 @@ const keys = {
   settings:   PREFIX + "settings",
   daily:      PREFIX + "daily",
   suppliers:  PREFIX + "suppliers",
-  customers:  PREFIX + "customers",
   bankCash:   PREFIX + "bankCash",
   bankTx:     PREFIX + "bankTx",
   expenses:   PREFIX + "expenses",
   advances:   PREFIX + "advances",
-  inventory:  PREFIX + "inventory",
-  invoices:   PREFIX + "invoices",
+  inventory:    PREFIX + "inventory",
+  invoices:     PREFIX + "invoices",
+  consignments: PREFIX + "consignments",
+  dailyMeta:    PREFIX + "dailyMeta",
 };
 
 function read(key, fallback) {
@@ -79,7 +80,7 @@ export function initDb() {
     ]);
   }
   // Ensure all stores exist as arrays
-  for (const k of ["daily","suppliers","customers","bankTx","expenses","advances","inventory","invoices"]) {
+  for (const k of ["daily","suppliers","bankTx","expenses","advances","inventory","invoices","consignments","dailyMeta"]) {
     if (read(keys[k], null) === null) write(keys[k], []);
   }
 }
@@ -245,7 +246,6 @@ function makePartyStore(storeKey) {
   };
 }
 export const suppliers = makePartyStore(keys.suppliers);
-export const customers = makePartyStore(keys.customers);
 
 /* ===== Bank & Cash Accounts ===== */
 const accountsStore = makeStore(keys.bankCash);
@@ -300,7 +300,27 @@ export const expenses = {
   byMonth(yyyymm) { // "2026-04"
     return this.all().filter(e => (e.date || "").startsWith(yyyymm));
   },
-  add(rec) { return expensesStore.add(rec); },
+  byDate(date) {
+    return this.all().filter(e => e.date === date);
+  },
+  bySource(source) { // "daily" | "manual"
+    return this.all().filter(e => (e.source || "manual") === source);
+  },
+  byDailyDate(date) {
+    return this.all().filter(e => e.source === "daily" && e.daily_date === date);
+  },
+  add(rec) {
+    return expensesStore.add({
+      date: rec.date,
+      category: rec.category || "أخرى",
+      amount: num(rec.amount),
+      description: rec.description || "",
+      payment_method: rec.payment_method || "cash",
+      account_id: rec.account_id || null,
+      source: rec.source || "manual",        // "daily" | "manual"
+      daily_date: rec.daily_date || null,    // التاريخ المرتبط إذا source=daily
+    });
+  },
   update(id, patch) { return expensesStore.update(id, patch); },
   remove(id) { expensesStore.remove(id); },
   totalsByCategory(yyyymm) {
@@ -313,20 +333,31 @@ export const expenses = {
   monthTotal(yyyymm) {
     return this.byMonth(yyyymm).reduce((s,e) => s + num(e.amount), 0);
   },
+  dayTotal(date) {
+    return this.byDate(date).reduce((s,e) => s + num(e.amount), 0);
+  },
 };
 
-/* ===== Advances ===== */
+/* ===== Advances (نقدية أو ذهبية) ===== */
 const advancesStore = makeStore(keys.advances);
 export const advances = {
   all() { return advancesStore.all(); },
+  byId(id) { return advancesStore.byId(id); },
+  byType(type) { return this.all().filter(a => (a.type || "cash") === type); },
   add(rec) {
     return advancesStore.add({
       person: rec.person || "",
-      kind: rec.kind || "employee", // employee | customer | other
-      amount: num(rec.amount),
+      kind: rec.kind || "employee",        // employee | craftsman | other
+      type: rec.type || "cash",            // cash | gold
+      amount: num(rec.amount),             // إذا cash
+      gold_weight: num(rec.gold_weight),   // إذا gold
+      gold_karat: rec.gold_karat || "21",
+      gold_form: rec.gold_form || "worked",
       date: rec.date,
+      due_date: rec.due_date || null,
       note: rec.note || "",
       payments: [],
+      status: "active",                    // active | settled
     });
   },
   update(id, patch) { return advancesStore.update(id, patch); },
@@ -334,20 +365,52 @@ export const advances = {
   addPayment(id, pay) {
     const a = advancesStore.byId(id); if (!a) return null;
     const arr = a.payments || [];
-    arr.push({ id: uid(), date: pay.date, amount: num(pay.amount), note: pay.note || "" });
-    return advancesStore.update(id, { payments: arr });
+    // pay: { date, amount?, weight?, note }
+    arr.push({
+      id: uid(),
+      date: pay.date,
+      amount: num(pay.amount),
+      weight: num(pay.weight),
+      note: pay.note || "",
+    });
+    const r = this._calcRemaining({ ...a, payments: arr });
+    const status = (r === 0) ? "settled" : "active";
+    return advancesStore.update(id, { payments: arr, status });
   },
-  remaining(id) {
-    const a = advancesStore.byId(id); if (!a) return 0;
+  removePayment(id, payId) {
+    const a = advancesStore.byId(id); if (!a) return null;
+    const arr = (a.payments || []).filter(p => p.id !== payId);
+    const r = this._calcRemaining({ ...a, payments: arr });
+    const status = (r === 0) ? "settled" : "active";
+    return advancesStore.update(id, { payments: arr, status });
+  },
+  _calcRemaining(a) {
+    if ((a.type || "cash") === "gold") {
+      const paid = (a.payments || []).reduce((s,p) => s + num(p.weight), 0);
+      return num(a.gold_weight) - paid;
+    }
     const paid = (a.payments || []).reduce((s,p) => s + num(p.amount), 0);
     return num(a.amount) - paid;
   },
+  remaining(id) {
+    const a = advancesStore.byId(id); if (!a) return 0;
+    return this._calcRemaining(a);
+  },
   totals() {
     const list = this.all();
-    let outstanding = 0;
-    for (const a of list) outstanding += this.remaining(a.id);
-    return { count: list.length, outstanding };
-  }
+    let outstandingCash = 0, outstandingGold = 0;
+    for (const a of list) {
+      const r = this.remaining(a.id);
+      if ((a.type || "cash") === "gold") outstandingGold += r;
+      else outstandingCash += r;
+    }
+    return {
+      count: list.length,
+      outstandingCash,
+      outstandingGold,
+      outstanding: outstandingCash, // toBackwards-compat
+    };
+  },
 };
 
 /* ===== Inventory ===== */
@@ -394,6 +457,144 @@ export const invoices = {
   },
   update(id, patch) { return invoicesStore.update(id, patch); },
   remove(id) { invoicesStore.remove(id); },
+};
+
+/* ===== Daily Meta (per-day metadata: cash/bank actual, paper image, closed) ===== */
+const dailyMetaStore = makeStore(keys.dailyMeta);
+export const dailyMeta = {
+  all() { return dailyMetaStore.all(); },
+  byDate(date) {
+    return this.all().find(m => m.date === date) || null;
+  },
+  upsert(date, patch) {
+    const existing = this.byDate(date);
+    if (existing) {
+      return dailyMetaStore.update(existing.id, patch);
+    }
+    return dailyMetaStore.add({
+      date,
+      cash_actual: 0,
+      bank_actual: 0,
+      paper_image: null,
+      notes: "",
+      closed: false,
+      closed_at: null,
+      ...patch,
+    });
+  },
+  isClosed(date) {
+    const m = this.byDate(date);
+    return m ? !!m.closed : false;
+  },
+  close(date) {
+    return this.upsert(date, { closed: true, closed_at: new Date().toISOString() });
+  },
+  reopen(date) {
+    return this.upsert(date, { closed: false, closed_at: null });
+  },
+};
+
+/* ===== Consignments (دفتر العهد) ===== */
+const consignmentsStore = makeStore(keys.consignments);
+export const consignments = {
+  all() { return consignmentsStore.all(); },
+  byId(id) { return consignmentsStore.byId(id); },
+  byStatus(status) { return this.all().filter(c => (c.status || "open") === status); },
+  add(rec) {
+    const items = (rec.items_out || []).map(it => ({
+      id: uid(),
+      description: it.description || "",
+      weight: num(it.weight),
+      karat: it.karat || "21",
+      form: it.form || "worked",
+      count: num(it.count) || 1,
+      price_per_gram: num(it.price_per_gram),
+    }));
+    const total_weight_out = items.reduce((s,i) => s + num(i.weight) * num(i.count), 0);
+    const expected_value   = items.reduce((s,i) => s + num(i.weight) * num(i.count) * num(i.price_per_gram), 0);
+    return consignmentsStore.add({
+      date_out: rec.date_out,
+      person:   rec.person || "",
+      items_out: items,
+      total_weight_out,
+      expected_value,
+      returns: [],
+      total_returned_cash: 0,
+      total_returned_weight: 0,
+      remaining_weight: total_weight_out,
+      status: "open",
+      closed_at: null,
+      note: rec.note || "",
+    });
+  },
+  update(id, patch) { return consignmentsStore.update(id, patch); },
+  remove(id) { consignmentsStore.remove(id); },
+  addReturn(id, ret) {
+    const c = this.byId(id); if (!c) return null;
+    const returns = c.returns || [];
+    const newRet = {
+      id: uid(),
+      date: ret.date,
+      type: ret.type, // cash | items | mixed
+      cash_amount: num(ret.cash_amount),
+      items_returned: (ret.items_returned || []).map(r => ({
+        item_id: r.item_id,
+        count_returned: num(r.count_returned),
+        weight_returned: num(r.weight_returned),
+      })),
+      account_id: ret.account_id || null, // إذا فيه فلوس وانخصمت لحساب
+      note: ret.note || "",
+    };
+    returns.push(newRet);
+    // recompute totals
+    let totalCash = 0, totalWeight = 0;
+    for (const r of returns) {
+      totalCash += num(r.cash_amount);
+      for (const it of (r.items_returned || [])) totalWeight += num(it.weight_returned);
+    }
+    const remaining = num(c.total_weight_out) - totalWeight;
+    return consignmentsStore.update(id, {
+      returns,
+      total_returned_cash: totalCash,
+      total_returned_weight: totalWeight,
+      remaining_weight: remaining,
+    });
+  },
+  removeReturn(id, retId) {
+    const c = this.byId(id); if (!c) return null;
+    const returns = (c.returns || []).filter(r => r.id !== retId);
+    let totalCash = 0, totalWeight = 0;
+    for (const r of returns) {
+      totalCash += num(r.cash_amount);
+      for (const it of (r.items_returned || [])) totalWeight += num(it.weight_returned);
+    }
+    return consignmentsStore.update(id, {
+      returns,
+      total_returned_cash: totalCash,
+      total_returned_weight: totalWeight,
+      remaining_weight: num(c.total_weight_out) - totalWeight,
+    });
+  },
+  close(id) {
+    return consignmentsStore.update(id, { status: "closed", closed_at: new Date().toISOString() });
+  },
+  reopen(id) {
+    return consignmentsStore.update(id, { status: "open", closed_at: null });
+  },
+  totals() {
+    const open = this.byStatus("open");
+    let weightOut = 0, weightReturned = 0, cashReturned = 0;
+    for (const c of open) {
+      weightOut      += num(c.total_weight_out);
+      weightReturned += num(c.total_returned_weight);
+      cashReturned   += num(c.total_returned_cash);
+    }
+    return {
+      openCount: open.length,
+      remainingWeight: weightOut - weightReturned,
+      cashReturned,
+    };
+  },
 };
 
 /* ===== Reports helpers ===== */

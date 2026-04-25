@@ -79,20 +79,19 @@ function buildLedgerTiles() {
   const grid = el("div", { class: "dash-grid" });
 
   const tiles = [
-    { href: "#/daily",     icon: "📓", title: "دفتر اليومية",          desc: "حركات الذهب والفضة والنقد اليومية", ready: true },
-    { href: "#/suppliers", icon: "👥", title: "دفتر الموردين",        desc: "حسابات الموردين ومشترياتهم",       ready: false },
-    { href: "#/bank-cash", icon: "🏦", title: "دفتر البنك والصندوق",  desc: "حركات البنك والصندوق النقدي",     ready: false },
-    { href: "#/expenses",  icon: "🧾", title: "دفتر المصاريف",        desc: "مصاريف تشغيلية وإدارية",         ready: false },
-    { href: "#/advances",  icon: "💰", title: "دفتر السلف",           desc: "سلف الموظفين والعملاء",          ready: false },
-    { href: "#/inventory", icon: "📦", title: "دفتر المخزون",          desc: "جرد الذهب والفضة الحالي",       ready: false },
+    { href: "#/daily",        icon: "📓", title: "دفتر اليومية",        desc: "حركات الذهب والنقد اليومية" },
+    { href: "#/suppliers",    icon: "🤝", title: "دفتر الموردين",       desc: "حسابات الموردين ومشترياتهم" },
+    { href: "#/bank-cash",    icon: "🏦", title: "دفتر البنك والصندوق", desc: "حركات البنك والصندوق النقدي" },
+    { href: "#/expenses",     icon: "💸", title: "دفتر المصاريف",       desc: "مصاريف تشغيلية وإدارية" },
+    { href: "#/advances",     icon: "📕", title: "دفتر السلف",          desc: "سلف نقدية وذهبية للموظفين" },
+    { href: "#/consignments", icon: "📗", title: "دفتر العهد",          desc: "ذهب خرج للمندوبين/الصاغة" },
+    { href: "#/inventory",    icon: "📦", title: "دفتر المخزون",         desc: "جرد الذهب الحالي" },
+    { href: "#/reports",      icon: "📊", title: "التقارير",            desc: "تقارير ذهب + فلوس" },
+    { href: "#/settings",     icon: "⚙️", title: "الإعدادات",           desc: "بيانات المحل والنسخ الاحتياطي" },
   ];
 
   for (const t of tiles) {
-    const a = el("a", {
-      href: t.ready ? t.href : "#",
-      class: "tile" + (t.ready ? "" : " soon"),
-    }, [
-      !t.ready ? el("span", { class: "tile-badge" }, "قريباً") : null,
+    const a = el("a", { href: t.href, class: "tile" }, [
       el("div", { class: "tile-ico" }, t.icon),
       el("div", { class: "tile-title" }, t.title),
       el("p", { class: "tile-desc" }, t.desc),

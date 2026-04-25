@@ -1,20 +1,32 @@
 /**
- * pages/reports.js — التقارير الشاملة
+ * pages/reports.js — التقارير (تبويبان: فلوس + ذهب)
  */
-import { reports, daily, expenses, suppliers, customers, bankCash, advances, inventory } from "../db.js";
 import {
-  el, money, num, toast, pageHead, thisMonthISO, thisYearISO,
-  formatMonthLong, LABELS,
+  reports, daily, expenses, suppliers, bankCash, advances, inventory, consignments,
+} from "../db.js";
+import {
+  el, money, num, pageHead, thisMonthISO, thisYearISO, formatMonthLong, LABELS,
 } from "../utils.js";
 
-let state = { period: "month", value: thisMonthISO() };
+let state = { tab: "money", period: "month", value: thisMonthISO() };
 
 export function renderReports(container) {
   container.innerHTML = "";
   container.appendChild(pageHead("التحليلات", "التقارير",
-    "نظرة شاملة على الحركات المالية، الأرباح، وموقفك في كل دفتر."));
+    "تقاريرك لمتابعة حركة الفلوس والذهب — شهرية وسنوية."));
 
   const toolbar = el("div", { class: "daily-toolbar" }, [
+    el("div", { class: "tabs" }, [
+      el("button", {
+        class: state.tab === "money" ? "active" : "",
+        onclick: () => { state.tab = "money"; render(); },
+      }, "📊 تقارير الفلوس"),
+      el("button", {
+        class: state.tab === "gold" ? "active" : "",
+        onclick: () => { state.tab = "gold"; render(); },
+      }, "⚖️ تقارير الذهب"),
+    ]),
+    el("div", { class: "spacer" }),
     el("div", { class: "tabs" }, [
       el("button", {
         class: state.period === "month" ? "active" : "",
@@ -31,8 +43,7 @@ export function renderReports(container) {
       : el("input", { type: "number", class: "input", value: state.value,
           min: "2020", max: "2100", style: "max-width:120px",
           onchange: (e) => { state.value = e.target.value; render(); } }),
-    el("div", { class: "spacer" }),
-    el("button", { class: "btn btn-ghost", onclick: () => window.print() }, "🖨  طباعة"),
+    el("button", { class: "btn btn-ghost", onclick: () => window.print() }, "🖨"),
   ]);
   container.appendChild(toolbar);
 
@@ -44,72 +55,214 @@ export function renderReports(container) {
     const range = state.period === "month"
       ? reports.monthRange(state.value)
       : reports.yearRange(state.value);
-    const t = reports.dailyTotals(range.from, range.to);
-
     const periodLabel = state.period === "month"
       ? formatMonthLong(state.value)
       : "سنة " + state.value;
 
     body.appendChild(el("h2", { style: "margin-top:8px" }, periodLabel));
 
-    // KPIs
-    const totalSales = t.cashIn + t.bankIn + t.creditIn;
-    const totalPurchases = t.cashOut + t.bankOut + t.creditOut;
-    const exp = state.period === "month"
-      ? expenses.monthTotal(state.value)
-      : monthsInYear(state.value).reduce((s, m) => s + expenses.monthTotal(m), 0);
-    const profit = totalSales - totalPurchases - exp;
-
-    body.appendChild(el("div", { class: "kpi-grid" }, [
-      kpi("إجمالي المبيعات", money(totalSales), "val-pos"),
-      kpi("إجمالي المشتريات", money(totalPurchases), "val-neg"),
-      kpi("المصاريف", money(exp), "val-neg"),
-      kpi("الربح الصافي", money(profit), profit >= 0 ? "val-pos" : "val-neg"),
-    ]));
-
-    // Cash flow breakdown
-    body.appendChild(el("h3", { style: "margin-top:24px" }, "تفصيل التدفق النقدي"));
-    body.appendChild(el("div", { class: "summary-grid" }, [
-      flowCard("نقداً", t.cashIn, t.cashOut),
-      flowCard("بنك / شبكة", t.bankIn, t.bankOut),
-      flowCard("آجل", t.creditIn, t.creditOut),
-    ]));
-
-    // Metals
-    body.appendChild(el("h3", { style: "margin-top:24px" }, "تحركات المعادن"));
-    body.appendChild(el("div", { class: "summary-grid" }, [
-      metalCard("ذهب", t.goldInW, t.goldOutW),
-      metalCard("فضة", t.silverInW, t.silverOutW),
-    ]));
-
-    // Snapshot of all books
-    body.appendChild(el("h3", { style: "margin-top:24px" }, "صورة عامة لجميع الدفاتر"));
-    const supT = suppliers.totals();
-    const cusT = customers.totals();
-    const advT = advances.totals();
-    const invT = inventory.totals();
-    body.appendChild(el("div", { class: "summary-grid" }, [
-      bookCard("الموردين",
-        `مستحق لهم: ${money(supT.positive)}`,
-        `${supT.count} مورد`),
-      bookCard("العملاء",
-        `مستحق علينا: ${money(cusT.positive)}`,
-        `${cusT.count} عميل`),
-      bookCard("البنك والصندوق",
-        `الرصيد: ${money(bankCash.totalCash())}`,
-        `${bankCash.accounts.all().length} حساب`),
-      bookCard("السلف",
-        `غير مسددة: ${money(advT.outstanding)}`,
-        `${advT.count} سلفة`),
-      bookCard("المخزون",
-        `${num(invT.weightG)} جم ذهب · ${num(invT.weightS)} جم فضة`,
-        `${invT.count} قطعة`),
-      bookCard("اليومية",
-        `${t.count} قيد في الفترة`,
-        periodLabel),
-    ]));
+    if (state.tab === "money") renderMoneyReport(body, range);
+    else renderGoldReport(body, range);
   }
   render();
+}
+
+/* ===== Money report ===== */
+function renderMoneyReport(body, range) {
+  const t = reports.dailyTotals(range.from, range.to);
+  const totalSales     = t.cashIn + t.bankIn + t.creditIn;
+  const totalPurchases = t.cashOut + t.bankOut + t.creditOut;
+  const exp = state.period === "month"
+    ? expenses.monthTotal(state.value)
+    : monthsInYear(state.value).reduce((s, m) => s + expenses.monthTotal(m), 0);
+  const profit = totalSales - totalPurchases - exp;
+
+  body.appendChild(el("div", { class: "kpi-grid" }, [
+    kpi("إجمالي المبيعات", money(totalSales), "val-pos"),
+    kpi("إجمالي المشتريات", money(totalPurchases), "val-neg"),
+    kpi("المصاريف", money(exp), "val-neg"),
+    kpi("الربح الصافي التقديري", money(profit), profit >= 0 ? "val-pos" : "val-neg"),
+  ]));
+
+  body.appendChild(el("h3", { style: "margin-top:24px" }, "تفصيل التدفق النقدي"));
+  body.appendChild(el("div", { class: "summary-grid" }, [
+    flowCard("نقداً", t.cashIn, t.cashOut),
+    flowCard("بنك / شبكة", t.bankIn, t.bankOut),
+    flowCard("آجل", t.creditIn, t.creditOut),
+  ]));
+
+  // Expenses by category
+  if (state.period === "month") {
+    const cats = expenses.totalsByCategory(state.value);
+    if (Object.keys(cats).length) {
+      body.appendChild(el("h3", { style: "margin-top:24px" }, "المصاريف حسب التصنيف"));
+      body.appendChild(el("div", { class: "summary-grid" },
+        Object.entries(cats).sort((a,b) => b[1] - a[1]).map(([cat, val]) =>
+          el("div", { class: "sum-card" }, [
+            el("h4", {}, cat),
+            el("div", { class: "sum-line net" }, [
+              el("span", { class: "lbl" }, "إجمالي"),
+              el("span", { class: "val val-neg" }, money(val)),
+            ]),
+            el("div", { class: "sum-line" }, [
+              el("span", { class: "lbl" }, "النسبة"),
+              el("span", { class: "val" }, ((val / exp) * 100).toFixed(1) + "%"),
+            ]),
+          ]),
+        ),
+      ));
+    }
+  }
+
+  // Suppliers
+  body.appendChild(el("h3", { style: "margin-top:24px" }, "الموردين والبنك"));
+  const supT = suppliers.totals();
+  const advT = advances.totals();
+  body.appendChild(el("div", { class: "summary-grid" }, [
+    bookCard("الموردين", `مستحق لهم: ${money(supT.positive)}`, `${supT.count} مورد`),
+    bookCard("البنك والصندوق",
+      `الرصيد الكلي: ${money(bankCash.totalCash())}`,
+      `${bankCash.accounts.all().length} حساب`),
+    bookCard("سلف نقدية", `غير مسددة: ${money(advT.outstandingCash)}`, `${advT.count} سلفة`),
+  ]));
+
+  // Bank breakdown
+  const accs = bankCash.accounts.all();
+  if (accs.length) {
+    body.appendChild(el("h3", { style: "margin-top:24px" }, "أرصدة الحسابات"));
+    body.appendChild(el("div", { class: "summary-grid" },
+      accs.map(a => {
+        const bal = bankCash.balance(a.id);
+        return el("div", { class: "sum-card" }, [
+          el("h4", {}, (a.type === "bank" ? "🏦 " : "💵 ") + a.name),
+          el("div", { class: "sum-line net" }, [
+            el("span", { class: "lbl" }, "الرصيد"),
+            el("span", { class: "val " + (bal >= 0 ? "val-pos" : "val-neg") }, money(bal)),
+          ]),
+          el("div", { class: "sum-line" }, [
+            el("span", { class: "lbl" }, "النوع"),
+            el("span", { class: "val" }, LABELS.accountType[a.type]),
+          ]),
+        ]);
+      }),
+    ));
+  }
+}
+
+/* ===== Gold report ===== */
+function renderGoldReport(body, range) {
+  const t = reports.dailyTotals(range.from, range.to);
+  const invT = inventory.totals();
+  const advT = advances.totals();
+  const consT = consignments.totals();
+
+  body.appendChild(el("div", { class: "kpi-grid" }, [
+    kpi("ذهب وارد (مشتريات)", num(t.goldInW) + " جم", "val-pos"),
+    kpi("ذهب صادر (مبيعات)", num(t.goldOutW) + " جم", "val-neg"),
+    kpi("صافي حركة الذهب", num(t.goldInW - t.goldOutW) + " جم",
+       (t.goldInW - t.goldOutW) >= 0 ? "val-pos" : "val-neg"),
+  ]));
+
+  body.appendChild(el("h3", { style: "margin-top:24px" }, "مخزون الذهب الحالي"));
+  body.appendChild(el("div", { class: "summary-grid" }, [
+    el("div", { class: "sum-card" }, [
+      el("h4", {}, "إجمالي الذهب المتوفر"),
+      el("div", { class: "sum-line net" }, [
+        el("span", { class: "lbl" }, "الوزن"),
+        el("span", { class: "val val-pos" }, num(invT.weightG) + " جم"),
+      ]),
+      el("div", { class: "sum-line" }, [
+        el("span", { class: "lbl" }, "القيمة"),
+        el("span", { class: "val" }, money(invT.valueG)),
+      ]),
+    ]),
+    el("div", { class: "sum-card" }, [
+      el("h4", {}, "عدد القطع"),
+      el("div", { class: "sum-line net" }, [
+        el("span", { class: "lbl" }, "متوفرة"),
+        el("span", { class: "val" }, String(invT.count)),
+      ]),
+    ]),
+  ]));
+
+  // مخزون الذهب لكل عيار
+  body.appendChild(el("h3", { style: "margin-top:24px" }, "الذهب المتوفر حسب العيار"));
+  const byKarat = inventoryByKarat();
+  body.appendChild(el("div", { class: "summary-grid" },
+    LABELS.goldKarats.map(k => {
+      const data = byKarat[k] || { weight: 0, count: 0, value: 0 };
+      return el("div", { class: "sum-card" }, [
+        el("h4", {}, "ذهب عيار " + k),
+        el("div", { class: "sum-line net" }, [
+          el("span", { class: "lbl" }, "الوزن"),
+          el("span", { class: "val " + (data.weight > 0 ? "val-pos" : "") },
+            num(data.weight) + " جم"),
+        ]),
+        el("div", { class: "sum-line" }, [
+          el("span", { class: "lbl" }, "العدد"),
+          el("span", { class: "val" }, String(data.count)),
+        ]),
+        el("div", { class: "sum-line" }, [
+          el("span", { class: "lbl" }, "القيمة"),
+          el("span", { class: "val" }, money(data.value)),
+        ]),
+      ]);
+    }),
+  ));
+
+  // الذهب خارج المحل
+  body.appendChild(el("h3", { style: "margin-top:24px" }, "الذهب خارج المحل"));
+  body.appendChild(el("div", { class: "summary-grid" }, [
+    el("div", { class: "sum-card" }, [
+      el("h4", {}, "🪙 ذهب لدى الصاغة (سلف ذهبية)"),
+      el("div", { class: "sum-line net" }, [
+        el("span", { class: "lbl" }, "الوزن غير المسدد"),
+        el("span", { class: "val val-pos" }, num(advT.outstandingGold) + " جم"),
+      ]),
+    ]),
+    el("div", { class: "sum-card" }, [
+      el("h4", {}, "📗 ذهب في العهد (المندوبين)"),
+      el("div", { class: "sum-line net" }, [
+        el("span", { class: "lbl" }, "متبقي عند المندوبين"),
+        el("span", { class: "val val-pos" }, num(consT.remainingWeight) + " جم"),
+      ]),
+      el("div", { class: "sum-line" }, [
+        el("span", { class: "lbl" }, "عدد العهد المفتوحة"),
+        el("span", { class: "val" }, String(consT.openCount)),
+      ]),
+    ]),
+    el("div", { class: "sum-card" }, [
+      el("h4", {}, "🤝 ذهب لدى الموردين"),
+      el("div", { class: "sum-line muted" }, [
+        el("span", { class: "lbl" }, "غير مفعّل (يحتاج تتبع منفصل)"),
+      ]),
+    ]),
+  ]));
+
+  // إجمالي مالك من الذهب
+  const totalGold = num(invT.weightG) + num(advT.outstandingGold) + num(consT.remainingWeight);
+  body.appendChild(el("h3", { style: "margin-top:24px" }, "📊 إجمالي ذهبك"));
+  body.appendChild(el("div", { class: "kpi-grid" }, [
+    kpi("داخل المحل", num(invT.weightG) + " جم", ""),
+    kpi("سلف ذهبية", num(advT.outstandingGold) + " جم", ""),
+    kpi("في العهد", num(consT.remainingWeight) + " جم", ""),
+    kpi("المجموع", num(totalGold) + " جم", "val-pos"),
+  ]));
+}
+
+function inventoryByKarat() {
+  const map = {};
+  for (const i of inventory.byStatus("available")) {
+    if (i.category !== "gold") continue;
+    const k = i.karat;
+    const w = num(i.weight);
+    const v = w * num(i.cost_price);
+    if (!map[k]) map[k] = { weight: 0, count: 0, value: 0 };
+    map[k].weight += w;
+    map[k].count  += 1;
+    map[k].value  += v;
+  }
+  return map;
 }
 
 function kpi(label, value, cls) {
@@ -137,30 +290,11 @@ function flowCard(title, inAmt, outAmt) {
     ]),
   ]);
 }
-function metalCard(title, inW, outW) {
-  const net = inW - outW;
-  return el("div", { class: "sum-card" }, [
-    el("h4", {}, title),
-    el("div", { class: "sum-line" }, [
-      el("span", { class: "lbl" }, "داخل (شراء)"),
-      el("span", { class: "val val-pos" }, "+" + num(inW) + " جم"),
-    ]),
-    el("div", { class: "sum-line" }, [
-      el("span", { class: "lbl" }, "خارج (بيع)"),
-      el("span", { class: "val val-neg" }, "−" + num(outW) + " جم"),
-    ]),
-    el("div", { class: "sum-line net" }, [
-      el("span", { class: "lbl" }, "صافي الحركة"),
-      el("span", { class: "val " + (net >= 0 ? "val-pos" : "val-neg") },
-        (net >= 0 ? "+" : "") + num(net) + " جم"),
-    ]),
-  ]);
-}
 function bookCard(title, line1, line2) {
   return el("div", { class: "sum-card" }, [
     el("h4", {}, title),
     el("div", { class: "sum-line" }, [el("span", { class: "lbl" }, line1)]),
-    el("div", { class: "sum-line muted" }, [el("span", { class: "lbl" }, line2)]),
+    line2 ? el("div", { class: "sum-line muted" }, [el("span", { class: "lbl" }, line2)]) : null,
   ]);
 }
 function monthsInYear(yyyy) {
