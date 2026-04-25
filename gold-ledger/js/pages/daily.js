@@ -40,6 +40,8 @@ function render(container) {
   const closed = dailyMeta.isClosed(state.date);
   if (closed) container.appendChild(buildClosedBanner());
 
+  container.appendChild(buildGoldPrices(closed));
+
   container.appendChild(buildSection({
     icon: "💰", title: "المبيعات", type: "sale", closed,
     addLabel: "+ عملية بيع",
@@ -55,6 +57,39 @@ function render(container) {
   container.appendChild(buildBalances(closed));
   container.appendChild(buildPaperPhoto(closed));
   container.appendChild(buildSaveBar(closed, container));
+}
+
+/* ───────── Gold prices section ───────── */
+function buildGoldPrices(closed) {
+  const meta = dailyMeta.byDate(state.date) || {};
+  const prices = meta.gold_prices || { "18": 0, "21": 0, "22": 0, "24": 0 };
+  const card = el("div", { class: "card", style: "margin-bottom:16px" });
+  card.appendChild(el("h3", {
+    style: "margin:0 0 12px;font-family:var(--font-display);font-size:20px",
+  }, "📊  سعر الجرام اليوم"));
+  card.appendChild(el("div", { class: "muted", style: "font-size:13px;margin-bottom:12px" },
+    "أدخل سعر جرام كل عيار في بداية اليوم — يُستخدم لحساب المصنعية تلقائياً."));
+
+  const grid = el("div", { class: "kpi-grid" });
+  for (const k of KARATS) {
+    grid.appendChild(el("div", { class: "kpi-card" }, [
+      el("div", { class: "kpi-label" }, "عيار " + k),
+      el("input", {
+        class: "input", type: "number", step: "0.01", inputmode: "decimal",
+        value: prices[k] || "", placeholder: "0.00",
+        disabled: closed,
+        style: "font-size:18px;font-weight:600;text-align:center",
+        onchange: (e) => {
+          const newPrices = { ...prices, [k]: Number(e.target.value) || 0 };
+          dailyMeta.upsert(state.date, { gold_prices: newPrices });
+          render($("#view"));
+        },
+      }),
+      el("div", { class: "muted", style: "font-size:11px;text-align:center;margin-top:2px" }, "ر.س / جم"),
+    ]));
+  }
+  card.appendChild(grid);
+  return card;
 }
 
 /* ───────── Header ───────── */
@@ -307,7 +342,7 @@ function buildExpensesSection(closed) {
   return card;
 }
 
-/* ───────── Day summary ───────── */
+/* ───────── Day summary + Manufacturing analysis ───────── */
 function buildSummary() {
   const sum = daily.summaryForDate(state.date);
   const expSum = expenses.byDailyDate(state.date).reduce((s, e) => s + num(e.amount), 0);
@@ -341,7 +376,85 @@ function buildSummary() {
       ]),
     ]));
   }
+
+  // ⚖️ تحليل المصنعية
+  const meta = dailyMeta.byDate(state.date) || {};
+  const prices = meta.gold_prices || { "18": 0, "21": 0, "22": 0, "24": 0 };
+  const hasAnyPrice = KARATS.some(k => num(prices[k]) > 0);
+
+  if ((sum.sales.total > 0 || sum.purchases.total > 0) && hasAnyPrice) {
+    card.appendChild(el("h4", { style: "margin:18px 0 8px" }, "⚖️  تحليل المصنعية"));
+    const analysisGrid = el("div", { class: "grid-2" });
+    if (sum.sales.total > 0)     analysisGrid.appendChild(buildManufacturingBox("sale", sum.sales, prices));
+    if (sum.purchases.total > 0) analysisGrid.appendChild(buildManufacturingBox("purchase", sum.purchases, prices));
+    card.appendChild(analysisGrid);
+  } else if ((sum.sales.total > 0 || sum.purchases.total > 0) && !hasAnyPrice) {
+    card.appendChild(el("div", {
+      style: "margin-top:14px;padding:10px;background:#fcf8f0;border-inline-start:4px solid var(--gold);border-radius:6px;font-size:13px;color:var(--ink-mute)",
+    }, "💡 أدخل أسعار الجرام في الأعلى لعرض تحليل المصنعية."));
+  }
   return card;
+}
+
+function buildManufacturingBox(type, side, prices) {
+  // قيمة الذهب الخام = Σ (وزن العيار × سعر العيار)
+  let goldValue = 0, totalWeight = 0;
+  const lines = [];
+  for (const k of KARATS) {
+    const w = num(side.gold[k]);
+    if (!w) continue;
+    const p = num(prices[k]);
+    const v = w * p;
+    goldValue += v;
+    totalWeight += w;
+    lines.push({ k, w, p, v });
+  }
+
+  const isSale = type === "sale";
+  const diff = side.total - goldValue;          // للمبيعات: مصنعية إيجابية؛ للمشتريات: سالبة = ربح
+  const avgPerGram = totalWeight ? diff / totalWeight : 0;
+
+  const box = el("div", {
+    style: "padding:14px;border:1px solid var(--border);border-radius:8px;background:var(--bg)",
+  });
+  box.appendChild(el("div", { style: "font-weight:700;margin-bottom:10px;font-size:15px" },
+    isSale ? "💰 تحليل المبيعات" : "🛍️ تحليل المشتريات (الكسر)"));
+
+  box.appendChild(rowLine("الإجمالي", money(side.total), isSale ? "val-pos" : "val-neg"));
+  // weight breakdown
+  for (const ln of lines) {
+    box.appendChild(rowLine(`الوزن عيار ${ln.k}`, num(ln.w) + " جم × " + money(ln.p), ""));
+  }
+  if (totalWeight) {
+    box.appendChild(rowLine("قيمة الذهب الخام", money(goldValue), ""));
+    box.appendChild(el("div", { style: "border-top:1px dashed var(--border);margin:8px 0" }));
+    if (isSale) {
+      box.appendChild(rowLine("المصنعية", money(diff),
+        diff >= 0 ? "val-pos" : "val-neg", true));
+      box.appendChild(rowLine("متوسط مصنعية الجرام",
+        money(avgPerGram) + " / جم", "muted"));
+    } else {
+      // diff = total - goldValue. For purchase, total < goldValue means profit (we bought cheap)
+      const profit = -diff; // قيمة الذهب الخام - مبلغ الشراء
+      box.appendChild(rowLine("فرق الشراء (ربح من الكسر)", money(profit),
+        profit >= 0 ? "val-pos" : "val-neg", true));
+      box.appendChild(rowLine("متوسط الفرق على الجرام",
+        money(profit / totalWeight) + " / جم", "muted"));
+    }
+  } else if (side.total > 0) {
+    box.appendChild(el("div", { class: "muted", style: "font-size:13px;margin-top:8px" },
+      "أدخل وزن في العمليات لحساب المصنعية."));
+  }
+  return box;
+}
+
+function rowLine(label, value, cls, bold) {
+  return el("div", {
+    style: "display:flex;justify-content:space-between;padding:4px 0;font-size:14px",
+  }, [
+    el("span", { class: bold ? "" : "" }, label),
+    el("span", { class: (cls || "") + (bold ? " " : ""), style: bold ? "font-weight:700;font-size:15px" : "" }, value),
+  ]);
 }
 
 function kpiBox(label, value, cls) {

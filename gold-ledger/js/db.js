@@ -508,18 +508,28 @@ export const dailyMeta = {
   upsert(date, patch) {
     const existing = this.byDate(date);
     if (existing) {
+      // دمج gold_prices لو في الـ patch
+      if (patch.gold_prices && existing.gold_prices) {
+        patch.gold_prices = { ...existing.gold_prices, ...patch.gold_prices };
+      }
       return dailyMetaStore.update(existing.id, patch);
     }
     return dailyMetaStore.add({
       date,
       cash_actual: 0,
       bank_actual: 0,
+      gold_prices: { "18": 0, "21": 0, "22": 0, "24": 0 },
       paper_image: null,
       notes: "",
       closed: false,
       closed_at: null,
       ...patch,
     });
+  },
+  /** سعر جرام عيار محدّد ليوم محدّد (0 إذا لم يُحدد) */
+  goldPrice(date, karat) {
+    const m = this.byDate(date);
+    return m && m.gold_prices ? num(m.gold_prices[karat]) : 0;
   },
   isClosed(date) {
     const m = this.byDate(date);
