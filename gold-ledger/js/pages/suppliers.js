@@ -1,2 +1,2 @@
-import { renderParty } from "./party.js?v=11";
-export function renderSuppliers(container) { renderParty(container, { kind: "supplier" }
+import { renderParty } from "./party.js?v=12";
+export function renderSuppliers(container) { renderParty(container, { kind: "supplier" }); }
