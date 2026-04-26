@@ -262,9 +262,10 @@ function buildSection({ icon, title, type, closed, addLabel }) {
 }
 
 function cellW(value, bold) {
-  const v = num(value);
+  const v = n(value);
   if (!v) return el("td", { class: "num text-mute" }, "—");
-  const inner = bold ? el("strong", {}, num(v)) : num(v);
+  const display = num(v);
+  const inner = bold ? el("strong", {}, display) : display;
   return el("td", { class: "num" }, inner);
 }
 function payChip(pm) {
@@ -273,16 +274,17 @@ function payChip(pm) {
     class: "type-chip " + (isCash ? "type-in" : "type-out"),
   }, isCash ? "💰 كاش" : "💳 شبكة");
 }
+function n(v) { const x = Number(v); return isFinite(x) ? x : 0; }
 function computeSum(rows) {
   const sum = { total: 0, gold_18: 0, gold_21: 0, gold_22: 0, gold_24: 0, silver_925: 0, silver_999: 0 };
   for (const r of rows) {
-    sum.total      += num(r.amount);
-    sum.gold_18    += num(r.gold_18);
-    sum.gold_21    += num(r.gold_21);
-    sum.gold_22    += num(r.gold_22);
-    sum.gold_24    += num(r.gold_24);
-    sum.silver_925 += num(r.silver_925);
-    sum.silver_999 += num(r.silver_999);
+    sum.total      += n(r.amount);
+    sum.gold_18    += n(r.gold_18);
+    sum.gold_21    += n(r.gold_21);
+    sum.gold_22    += n(r.gold_22);
+    sum.gold_24    += n(r.gold_24);
+    sum.silver_925 += n(r.silver_925);
+    sum.silver_999 += n(r.silver_999);
   }
   return sum;
 }
@@ -308,7 +310,7 @@ function buildExpensesSection(closed) {
   const list = el("div", { style: "display:flex;flex-direction:column;gap:6px" });
   let total = 0;
   for (const e of rows) {
-    total += num(e.amount);
+    total += n(e.amount);
     list.appendChild(el("div", {
       style: "display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--panel);border-radius:6px",
     }, [
@@ -345,7 +347,7 @@ function buildExpensesSection(closed) {
 /* ───────── Day summary + Manufacturing analysis ───────── */
 function buildSummary() {
   const sum = daily.summaryForDate(state.date);
-  const expSum = expenses.byDailyDate(state.date).reduce((s, e) => s + num(e.amount), 0);
+  const expSum = expenses.byDailyDate(state.date).reduce((s, e) => s + n(e.amount), 0);
   const card = el("div", { class: "card", style: "margin-bottom:16px" });
   card.appendChild(el("h3", {
     style: "margin:0 0 14px;font-family:var(--font-display);font-size:20px",
@@ -380,7 +382,7 @@ function buildSummary() {
   // ⚖️ تحليل المصنعية
   const meta = dailyMeta.byDate(state.date) || {};
   const prices = meta.gold_prices || { "18": 0, "21": 0, "22": 0, "24": 0 };
-  const hasAnyPrice = KARATS.some(k => num(prices[k]) > 0);
+  const hasAnyPrice = KARATS.some(k => n(prices[k]) > 0);
 
   if ((sum.sales.total > 0 || sum.purchases.total > 0) && hasAnyPrice) {
     card.appendChild(el("h4", { style: "margin:18px 0 8px" }, "⚖️  تحليل المصنعية"));
@@ -401,9 +403,9 @@ function buildManufacturingBox(type, side, prices) {
   let goldValue = 0, totalWeight = 0;
   const lines = [];
   for (const k of KARATS) {
-    const w = num(side.gold[k]);
+    const w = n(side.gold[k]);
     if (!w) continue;
-    const p = num(prices[k]);
+    const p = n(prices[k]);
     const v = w * p;
     goldValue += v;
     totalWeight += w;
@@ -486,7 +488,7 @@ function buildBalances(closed) {
 }
 
 function buildBalanceBox(title, field_key, actual, expected, closed) {
-  const diff = num(actual) - num(expected);
+  const diff = n(actual) - n(expected);
   let status, statusCls;
   if (!actual)            { status = "لم يُدخل بعد"; statusCls = "muted"; }
   else if (Math.abs(diff) < 1)   { status = "✅ مطابق"; statusCls = "val-pos"; }
@@ -586,7 +588,7 @@ function buildSaveBar(closed, container) {
     return wrap;
   }
   const sum = daily.summaryForDate(state.date);
-  const expSum = expenses.byDailyDate(state.date).reduce((s, e) => s + num(e.amount), 0);
+  const expSum = expenses.byDailyDate(state.date).reduce((s, e) => s + n(e.amount), 0);
   const hasAny = (sum.sales.count + sum.purchases.count + expenses.byDailyDate(state.date).length) > 0;
   if (!hasAny) {
     wrap.appendChild(el("div", { class: "muted" },

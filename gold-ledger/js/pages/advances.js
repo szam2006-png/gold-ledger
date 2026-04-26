@@ -7,6 +7,8 @@ import {
   emptyState, pageHead, LABELS,
 } from "../utils.js";
 
+function n(v) { const x = Number(v); return isFinite(x) ? x : 0; }
+
 let state = { filter: "all" };
 
 export function renderAdvances(container) {
@@ -77,8 +79,8 @@ export function renderAdvances(container) {
     const tb = el("tbody");
     for (const a of list) {
       const isGold = (a.type || "cash") === "gold";
-      const original = isGold ? num(a.gold_weight) : num(a.amount);
-      const paid = (a.payments || []).reduce((s,p) => s + (isGold ? num(p.weight) : num(p.amount)), 0);
+      const original = isGold ? n(a.gold_weight) : n(a.amount);
+      const paid = (a.payments || []).reduce((s,p) => s + (isGold ? n(p.weight) : n(p.amount)), 0);
       const remaining = original - paid;
       const fmt = isGold ? (v) => num(v) + " جم" : (v) => money(v);
       const cls = remaining > 0 ? "val-pos" : "val-neg";
@@ -251,8 +253,8 @@ function openPaymentsModal(id, onDone) {
     const refresh = () => {
       const fresh = advances.byId(id);
       if (!fresh) return;
-      const original = isGold ? num(fresh.gold_weight) : num(fresh.amount);
-      const paid = (fresh.payments || []).reduce((s,p) => s + (isGold ? num(p.weight) : num(p.amount)), 0);
+      const original = isGold ? n(fresh.gold_weight) : n(fresh.amount);
+      const paid = (fresh.payments || []).reduce((s,p) => s + (isGold ? n(p.weight) : n(p.amount)), 0);
       const remaining = original - paid;
       const fmt = isGold ? (v) => num(v) + " جم" : (v) => money(v);
       root.innerHTML = "";

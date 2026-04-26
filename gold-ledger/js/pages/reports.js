@@ -8,6 +8,8 @@ import {
   el, money, num, pageHead, thisMonthISO, thisYearISO, formatMonthLong, LABELS,
 } from "../utils.js";
 
+function n(v) { const x = Number(v); return isFinite(x) ? x : 0; }
+
 let state = { tab: "money", period: "month", value: thisMonthISO() };
 
 export function renderReports(container) {
@@ -240,7 +242,7 @@ function renderGoldReport(body, range) {
   ]));
 
   // إجمالي مالك من الذهب
-  const totalGold = num(invT.weightG) + num(advT.outstandingGold) + num(consT.remainingWeight);
+  const totalGold = n(invT.weightG) + n(advT.outstandingGold) + n(consT.remainingWeight);
   body.appendChild(el("h3", { style: "margin-top:24px" }, "📊 إجمالي ذهبك"));
   body.appendChild(el("div", { class: "kpi-grid" }, [
     kpi("داخل المحل", num(invT.weightG) + " جم", ""),
@@ -255,8 +257,8 @@ function inventoryByKarat() {
   for (const i of inventory.byStatus("available")) {
     if (i.category !== "gold") continue;
     const k = i.karat;
-    const w = num(i.weight);
-    const v = w * num(i.cost_price);
+    const w = n(i.weight);
+    const v = w * n(i.cost_price);
     if (!map[k]) map[k] = { weight: 0, count: 0, value: 0 };
     map[k].weight += w;
     map[k].count  += 1;

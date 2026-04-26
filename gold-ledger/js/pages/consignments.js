@@ -9,6 +9,8 @@ import {
   emptyState, pageHead, LABELS,
 } from "../utils.js";
 
+function n(v) { const x = Number(v); return isFinite(x) ? x : 0; }
+
 let state = { filter: "open" };
 
 export function renderConsignments(container) {
@@ -79,7 +81,7 @@ export function renderConsignments(container) {
     ])));
     const tb = el("tbody");
     for (const c of list) {
-      const remaining = num(c.remaining_weight);
+      const remaining = n(c.remaining_weight);
       const cls = remaining > 0 ? "val-pos" : "val-neg";
       tb.appendChild(el("tr", {}, [
         el("td", {}, c.date_out || "—"),
@@ -184,8 +186,8 @@ function openConsignmentForm(id, onDone) {
       const totalsBox = el("div", { id: "consTotalsBox", style: "margin-top:16px;padding:12px;background:var(--panel);border-radius:8px;border:1px solid var(--border)" });
       root.appendChild(totalsBox);
       function updateTotals() {
-        const tw = f.items.reduce((s,i) => s + (num(i.weight) * (num(i.count) || 1)), 0);
-        const tv = f.items.reduce((s,i) => s + (num(i.weight) * (num(i.count) || 1) * num(i.price_per_gram)), 0);
+        const tw = f.items.reduce((s,i) => s + (n(i.weight) * (n(i.count) || 1)), 0);
+        const tv = f.items.reduce((s,i) => s + (n(i.weight) * (n(i.count) || 1) * n(i.price_per_gram)), 0);
         totalsBox.innerHTML = "";
         totalsBox.appendChild(el("div", { class: "between" }, [
           el("strong", {}, "إجمالي الوزن: " + num(tw) + " جم"),
@@ -202,7 +204,7 @@ function openConsignmentForm(id, onDone) {
   }, {
     onSave: () => {
       if (!f.person.trim()) { toast("أدخل اسم المندوب"); return false; }
-      const valid = f.items.filter(i => num(i.weight) > 0);
+      const valid = f.items.filter(i => n(i.weight) > 0);
       if (!valid.length) { toast("أضف قطعة واحدة على الأقل بوزن"); return false; }
       const payload = {
         date_out: f.date_out,
@@ -213,23 +215,23 @@ function openConsignmentForm(id, onDone) {
       if (exist) {
         // التعديل بسيط: نعيد كتابة items وحفظها
         const c = consignments.byId(id);
-        const totalW = valid.reduce((s,i) => s + num(i.weight) * (num(i.count) || 1), 0);
-        const expV   = valid.reduce((s,i) => s + num(i.weight) * (num(i.count) || 1) * num(i.price_per_gram), 0);
+        const totalW = valid.reduce((s,i) => s + n(i.weight) * (n(i.count) || 1), 0);
+        const expV   = valid.reduce((s,i) => s + n(i.weight) * (n(i.count) || 1) * n(i.price_per_gram), 0);
         consignments.update(id, {
           date_out: payload.date_out,
           person: payload.person,
           items_out: valid.map(it => ({
             id: it.id || (Date.now().toString(36) + Math.random().toString(36).slice(2,8)),
             description: it.description || "",
-            weight: num(it.weight),
+            weight: n(it.weight),
             karat: it.karat || "21",
             form: it.form || "worked",
-            count: num(it.count) || 1,
-            price_per_gram: num(it.price_per_gram),
+            count: n(it.count) || 1,
+            price_per_gram: n(it.price_per_gram),
           })),
           total_weight_out: totalW,
           expected_value: expV,
-          remaining_weight: totalW - num(c.total_returned_weight || 0),
+          remaining_weight: totalW - n(c.total_returned_weight || 0),
           note: payload.note,
         });
       } else {
@@ -359,7 +361,7 @@ function openConsignmentDetail(id, onDone) {
         ])));
         const rtb = el("tbody");
         for (const r of returns) {
-          const totalW = (r.items_returned || []).reduce((s,i) => s + num(i.weight_returned), 0);
+          const totalW = (r.items_returned || []).reduce((s,i) => s + n(i.weight_returned), 0);
           rtb.appendChild(el("tr", {}, [
             el("td", {}, r.date || "—"),
             el("td", {}, returnTypeLabel(r.type)),
@@ -460,8 +462,8 @@ function openReturnForm(consId, refreshDetail, refreshList) {
       if (f.type === "items" || f.type === "mixed") {
         root.appendChild(el("h4", { style: "margin-top:14px" }, "اختر القطع التي رجعت"));
         for (const item of f.items_returned) {
-          const cap = num(item.count) || 1;
-          const wpu = num(item.weight); // weight per unit
+          const cap = n(item.count) || 1;
+          const wpu = n(item.weight); // weight per unit
           const ir = el("div", {
             style: "display:grid;grid-template-columns:2.5fr 0.8fr 1fr;gap:8px;margin-bottom:6px;align-items:center;padding:8px;background:var(--panel);border-radius:6px",
           }, [
@@ -495,7 +497,7 @@ function openReturnForm(consId, refreshDetail, refreshList) {
     onSave: () => {
       const cashOk = (f.type === "cash" || f.type === "mixed") && Number(f.cash_amount) > 0;
       const itemsOk = (f.type === "items" || f.type === "mixed") &&
-        f.items_returned.some(it => num(it.weight_returned) > 0);
+        f.items_returned.some(it => n(it.weight_returned) > 0);
       if (f.type === "cash" && !cashOk) { toast("أدخل المبلغ"); return false; }
       if (f.type === "items" && !itemsOk) { toast("اختر قطعة واحدة على الأقل"); return false; }
       if (f.type === "mixed" && !cashOk && !itemsOk) { toast("أدخل مبلغاً أو قطعاً"); return false; }
@@ -505,7 +507,7 @@ function openReturnForm(consId, refreshDetail, refreshList) {
         type: f.type,
         cash_amount: cashOk ? Number(f.cash_amount) : 0,
         items_returned: f.items_returned
-          .filter(it => num(it.weight_returned) > 0)
+          .filter(it => n(it.weight_returned) > 0)
           .map(it => ({
             item_id: it.item_id,
             count_returned: it.count_returned,
