@@ -1,11 +1,11 @@
 /**
  * pages/bank-cash.js — دفتر البنك والصندوق
  */
-import { bankCash } from "../db.js";
+import { bankCash } from "../db.js?v=11";
 import {
   $, el, money, todayISO, toast, confirmAsk, openModal, field,
   emptyState, pageHead, LABELS,
-} from "../utils.js";
+} from "../utils.js?v=11";
 
 export function renderBankCash(container) {
   container.innerHTML = "";

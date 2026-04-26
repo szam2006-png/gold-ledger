@@ -1,11 +1,11 @@
 /**
  * pages/inventory.js — دفتر المخزون
  */
-import { inventory } from "../db.js";
+import { inventory } from "../db.js?v=11";
 import {
   $, el, money, weight, num, toast, confirmAsk, openModal, field,
   emptyState, pageHead, LABELS,
-} from "../utils.js";
+} from "../utils.js?v=11";
 
 let state = { filter: "available", search: "" };
 

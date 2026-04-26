@@ -1,11 +1,11 @@
 /**
  * pages/advances.js — دفتر السلف (نقدية + ذهبية)
  */
-import { advances } from "../db.js";
+import { advances } from "../db.js?v=11";
 import {
   $, el, money, weight, num, todayISO, toast, confirmAsk, openModal, field,
   emptyState, pageHead, LABELS,
-} from "../utils.js";
+} from "../utils.js?v=11";
 
 function n(v) { const x = Number(v); return isFinite(x) ? x : 0; }
 
@@ -335,8 +335,4 @@ function openPaymentsModal(id, onDone) {
       }
       table.appendChild(tb);
       wrap.appendChild(table);
-      root.appendChild(wrap);
-    };
-    refresh();
-  });
-}
+      ro

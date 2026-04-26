@@ -3,11 +3,11 @@
  * قطع ذهب تخرج من المحل لمندوب/موظف لبيعها خارج المحل،
  * يرجع إما بفلوس أو قطع أو مختلط.
  */
-import { consignments, bankCash } from "../db.js";
+import { consignments, bankCash } from "../db.js?v=11";
 import {
   $, el, money, num, todayISO, toast, confirmAsk, openModal, field,
   emptyState, pageHead, LABELS,
-} from "../utils.js";
+} from "../utils.js?v=11";
 
 function n(v) { const x = Number(v); return isFinite(x) ? x : 0; }
 
@@ -527,7 +527,4 @@ function openReturnForm(consId, refreshDetail, refreshList) {
           note: "إرجاع عهدة من " + (c.person || ""),
         });
       }
-      refreshDetail(); refreshList(); toast("تم تسجيل الإرجاع");
-    }
-  });
-}
+      refreshDetail(); refreshList(); toast("تم تسجيل الإ

@@ -1,11 +1,11 @@
 /**
  * pages/settings.js — إعدادات المحل + إنشاء فاتورة جديدة
  */
-import { settings, invoices, customers } from "../db.js";
+import { settings, invoices, customers } from "../db.js?v=11";
 import {
   el, money, todayISO, toast, openModal, field,
   emptyState, pageHead,
-} from "../utils.js";
+} from "../utils.js?v=11";
 
 export function renderSettings(container) {
   container.innerHTML = "";
@@ -279,4 +279,4 @@ ${inv.note ? `<div style="margin-top:18px"><strong>ملاحظات:</strong> ${es
 </body></html>`);
   win.document.close();
 }
-function escapeHtml(s) { return String(s||"").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c])); }
+function escapeHtml(s) { return String(s||"").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","

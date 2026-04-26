@@ -6,19 +6,20 @@
  *  - تسجيل Service Worker
  */
 
-import { initDb, storageStats } from "./db.js";
-import { $, $$, formatDateLong, todayISO } from "./utils.js";
-import { renderHome } from "./pages/home.js";
-import { renderDaily } from "./pages/daily.js";
-import { renderSuppliers } from "./pages/suppliers.js";
-import { renderCustomers } from "./pages/customers.js";
-import { renderBankCash } from "./pages/bank-cash.js";
-import { renderExpenses } from "./pages/expenses.js";
-import { renderAdvances } from "./pages/advances.js";
-import { renderConsignments } from "./pages/consignments.js";
-import { renderInventory } from "./pages/inventory.js";
-import { renderReports } from "./pages/reports.js";
-import { renderSettings } from "./pages/settings.js";
+/* بُمب الإصدار في كل الـ imports لإجبار جلب جديد عند كل إصدار */
+import { initDb, storageStats } from "./db.js?v=11";
+import { $, $$, formatDateLong, todayISO } from "./utils.js?v=11";
+import { renderHome } from "./pages/home.js?v=11";
+import { renderDaily } from "./pages/daily.js?v=11";
+import { renderSuppliers } from "./pages/suppliers.js?v=11";
+import { renderCustomers } from "./pages/customers.js?v=11";
+import { renderBankCash } from "./pages/bank-cash.js?v=11";
+import { renderExpenses } from "./pages/expenses.js?v=11";
+import { renderAdvances } from "./pages/advances.js?v=11";
+import { renderConsignments } from "./pages/consignments.js?v=11";
+import { renderInventory } from "./pages/inventory.js?v=11";
+import { renderReports } from "./pages/reports.js?v=11";
+import { renderSettings } from "./pages/settings.js?v=11";
 
 /* ===== Routes ===== */
 const routes = {
@@ -103,15 +104,4 @@ function boot() {
   renderHeaderDate();
   renderStorageInfo();
 
-  $("#menuBtn")?.addEventListener("click", openSidebar);
-  $("#closeSidebar")?.addEventListener("click", closeSidebar);
-  $("#sidebarBackdrop")?.addEventListener("click", closeSidebar);
-
-  window.addEventListener("hashchange", navigate);
-  navigate();
-
-  setInterval(renderStorageInfo, 15000);
-  registerSW();
-}
-
-document.addEventListener("DOMContentLoaded", boot);
+  $("#menuBtn")?.addEventListener("click", openSide

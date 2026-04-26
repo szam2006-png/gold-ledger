@@ -3,7 +3,7 @@
  * Cache-first strategy للملفات الأساسية لضمان العمل دون اتصال.
  */
 
-const VERSION = "v10";
+const VERSION = "v11";
 const CACHE = "gold-ledger-" + VERSION;
 
 const CORE_ASSETS = [

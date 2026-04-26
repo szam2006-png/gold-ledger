@@ -3,10 +3,10 @@
  */
 import {
   reports, daily, expenses, suppliers, customers, bankCash, advances, inventory, consignments,
-} from "../db.js";
+} from "../db.js?v=11";
 import {
   el, money, num, pageHead, thisMonthISO, thisYearISO, formatMonthLong, LABELS,
-} from "../utils.js";
+} from "../utils.js?v=11";
 
 function n(v) { const x = Number(v); return isFinite(x) ? x : 0; }
 
@@ -298,9 +298,4 @@ function bookCard(title, line1, line2) {
   return el("div", { class: "sum-card" }, [
     el("h4", {}, title),
     el("div", { class: "sum-line" }, [el("span", { class: "lbl" }, line1)]),
-    line2 ? el("div", { class: "sum-line muted" }, [el("span", { class: "lbl" }, line2)]) : null,
-  ]);
-}
-function monthsInYear(yyyy) {
-  return Array.from({ length: 12 }, (_, i) => `${yyyy}-${String(i+1).padStart(2,"0")}`);
-}
+    lin
