@@ -11,6 +11,7 @@ import { $, $$, formatDateLong, todayISO } from "./utils.js";
 import { renderHome } from "./pages/home.js";
 import { renderDaily } from "./pages/daily.js";
 import { renderSuppliers } from "./pages/suppliers.js";
+import { renderCustomers } from "./pages/customers.js";
 import { renderBankCash } from "./pages/bank-cash.js";
 import { renderExpenses } from "./pages/expenses.js";
 import { renderAdvances } from "./pages/advances.js";
@@ -24,6 +25,7 @@ const routes = {
   "/":          { title: "الرئيسية",            render: renderHome },
   "/daily":     { title: "دفتر اليومية",        render: renderDaily },
   "/suppliers": { title: "دفتر الموردين",        render: renderSuppliers },
+  "/customers": { title: "دفتر العملاء",         render: renderCustomers },
   "/bank-cash": { title: "دفتر البنك والصندوق",  render: renderBankCash },
   "/expenses":  { title: "دفتر المصاريف",        render: renderExpenses },
   "/advances":    { title: "دفتر السلف",           render: renderAdvances },

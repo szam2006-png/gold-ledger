@@ -2,7 +2,7 @@
  * pages/reports.js — التقارير (تبويبان: فلوس + ذهب)
  */
 import {
-  reports, daily, expenses, suppliers, bankCash, advances, inventory, consignments,
+  reports, daily, expenses, suppliers, customers, bankCash, advances, inventory, consignments,
 } from "../db.js";
 import {
   el, money, num, pageHead, thisMonthISO, thisYearISO, formatMonthLong, LABELS,
@@ -119,9 +119,11 @@ function renderMoneyReport(body, range) {
   // Suppliers
   body.appendChild(el("h3", { style: "margin-top:24px" }, "الموردين والبنك"));
   const supT = suppliers.totals();
+  const cusT = customers.totals();
   const advT = advances.totals();
   body.appendChild(el("div", { class: "summary-grid" }, [
-    bookCard("الموردين", `مستحق لهم: ${money(supT.positive)}`, `${supT.count} مورد`),
+    bookCard("الموردين", `مستحق لهم: ${money(supT.positiveCash)}`, `${supT.count} مورد`),
+    bookCard("العملاء", `مستحق علينا: ${money(cusT.positiveCash)}`, `${cusT.count} عميل`),
     bookCard("البنك والصندوق",
       `الرصيد الكلي: ${money(bankCash.totalCash())}`,
       `${bankCash.accounts.all().length} حساب`),

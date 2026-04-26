@@ -11,6 +11,7 @@ const keys = {
   settings:   PREFIX + "settings",
   daily:      PREFIX + "daily",
   suppliers:  PREFIX + "suppliers",
+  customers:  PREFIX + "customers",
   bankCash:   PREFIX + "bankCash",
   bankTx:     PREFIX + "bankTx",
   expenses:   PREFIX + "expenses",
@@ -87,9 +88,11 @@ export function initDb() {
     ]);
   }
   // Ensure all stores exist as arrays
-  for (const k of ["daily","suppliers","bankTx","expenses","advances","inventory","invoices","consignments","dailyMeta"]) {
+  for (const k of ["daily","suppliers","customers","bankTx","expenses","advances","inventory","invoices","consignments","dailyMeta"]) {
     if (read(keys[k], null) === null) write(keys[k], []);
   }
+  // Migrate legacy supplier records (single opening field) to new shape
+  try { suppliers.migrate(); customers.migrate(); } catch (e) { /* migrate runs after exports defined */ }
 }
 
 /* ===== Generic store factory ===== */
@@ -225,23 +228,59 @@ export const daily = {
   }
 };
 
-/* ===== Suppliers / Customers (مع رصيد جاري) ===== */
-function makePartyStore(storeKey) {
+/* ===== Suppliers / Customers — مع رصيدين (نقد + ذهب بالأعيرة) =====
+ * نموذج الجهة:
+ * {
+ *   name, phone, type, notes, active,
+ *   opening_cash, opening_gold: { 18, 21, 22, 24 },
+ *   transactions: [
+ *     { id, date, kind:"cash", direction:"in"|"out", amount, payment_method, account_id?, ref, note },
+ *     { id, date, kind:"gold", direction:"in"|"out", karat, weight, form, ref, note },
+ *   ]
+ * }
+ * موجب => الجهة تستحق علينا (نحن مدينون)
+ *   - مورد: in = شراء آجل (يزيد المستحق له)، out = دفعة له
+ *   - عميل: out = بيع آجل (يزيد المستحق له، أي ندين له بقيمة الذهب)... لا!
+ *     في تجارة الذهب: العميل يدفع لنا. نتبنى للعميل:
+ *       in = بيع آجل (يزيد ما هو مدين لنا)، out = دفعة/إرجاع منه
+ *     فالموجب = ما يستحق لنا عليه.
+ * نطبّق نفس قاعدة الإشارة لكل من الموردين والعملاء.
+ */
+const KARATS_LIST = ["18", "21", "22", "24"];
+const emptyGoldMap = () => ({ "18": 0, "21": 0, "22": 0, "24": 0 });
+
+function makePartyStore(storeKey, kind /* "supplier"|"customer" */) {
   const store = makeStore(storeKey);
+
+  const normalizeOpeningGold = (g) => {
+    const out = emptyGoldMap();
+    if (g) for (const k of KARATS_LIST) out[k] = num(g[k]);
+    return out;
+  };
+
   return {
+    kind,
     all() { return store.all(); },
     byId(id) { return store.byId(id); },
     add(rec) {
       return store.add({
         name: rec.name || "",
         phone: rec.phone || "",
-        opening: num(rec.opening),
+        type: rec.type || (kind === "customer" ? "regular" : "regular"),
         notes: rec.notes || "",
-        transactions: [], // [{id, date, type:'in'|'out', amount, ref, note}]
+        active: rec.active !== false,
+        opening_cash: num(rec.opening_cash),
+        opening_gold: normalizeOpeningGold(rec.opening_gold),
+        transactions: [],
       });
     },
-    update(id, patch) { return store.update(id, patch); },
+    update(id, patch) {
+      if (patch.opening_gold) patch.opening_gold = normalizeOpeningGold(patch.opening_gold);
+      if (patch.opening_cash !== undefined) patch.opening_cash = num(patch.opening_cash);
+      return store.update(id, patch);
+    },
     remove(id) { store.remove(id); },
+
     addTx(partyId, tx) {
       const p = store.byId(partyId); if (!p) return null;
       const txs = p.transactions || [];
@@ -253,38 +292,90 @@ function makePartyStore(storeKey) {
       const txs = (p.transactions || []).filter(t => t.id !== txId);
       return store.update(partyId, { transactions: txs });
     },
-    /**
-     * balance: positive => the party owes you (مدين لك)
-     * For suppliers: opening + (مشتريات منه) - (دفعات له) — convention varies.
-     * نتبنى: المبلغ المستحق علينا للمورد (نحن مدينون له).
-     * For customers: المبلغ المستحق لنا على العميل.
-     * نوحّد: balance = opening + Σ(in.amount) - Σ(out.amount)
-     *  - for supplier: in = شراء جديد بالآجل (يزيد ما نحن مدينون له)، out = دفعة له
-     *  - for customer: in = بيع جديد بالآجل (يزيد ما هو مدين لنا)، out = دفعة منه
-     */
-    balance(partyId) {
+
+    /** الرصيد النقدي: موجب = الجهة تستحق علينا فلوس */
+    balanceCash(partyId) {
       const p = store.byId(partyId); if (!p) return 0;
-      const txs = p.transactions || [];
-      let bal = num(p.opening);
-      for (const t of txs) {
-        if (t.type === "in") bal += num(t.amount);
-        else                  bal -= num(t.amount);
+      let bal = num(p.opening_cash);
+      for (const t of (p.transactions || [])) {
+        if (t.kind === "cash") {
+          if (t.direction === "in") bal += num(t.amount);
+          else                       bal -= num(t.amount);
+        }
       }
       return bal;
     },
+    /** رصيد الذهب لكل عيار: موجب = نستحق له بالعيار، سالب = هو مدين بالعيار */
+    balanceGold(partyId) {
+      const p = store.byId(partyId); if (!p) return emptyGoldMap();
+      const bal = { ...normalizeOpeningGold(p.opening_gold) };
+      for (const t of (p.transactions || [])) {
+        if (t.kind === "gold") {
+          const k = t.karat;
+          if (!(k in bal)) continue;
+          if (t.direction === "in") bal[k] += num(t.weight);
+          else                       bal[k] -= num(t.weight);
+        }
+      }
+      return bal;
+    },
+    /** تحويل كل الأوزان لمرجع 21 (للملخصات) */
+    balanceGoldAs21(partyId) {
+      const g = this.balanceGold(partyId);
+      return num(g["18"]) * 0.857 + num(g["21"]) + num(g["22"]) * 1.047 + num(g["24"]) * 1.142;
+    },
     totals() {
       const list = store.all();
-      let positive = 0, negative = 0, count = list.length;
+      let positiveCash = 0, negativeCash = 0;
+      let positiveGold = 0, negativeGold = 0;
       for (const p of list) {
-        const b = this.balance(p.id);
-        if (b > 0) positive += b;
-        else if (b < 0) negative += Math.abs(b);
+        const c = this.balanceCash(p.id);
+        if (c > 0) positiveCash += c; else if (c < 0) negativeCash += Math.abs(c);
+        const g21 = this.balanceGoldAs21(p.id);
+        if (g21 > 0) positiveGold += g21; else if (g21 < 0) negativeGold += Math.abs(g21);
       }
-      return { positive, negative, count };
-    }
+      return {
+        count: list.length,
+        positiveCash, negativeCash,
+        positiveGold, negativeGold,
+        // legacy aliases للتوافق مع تقارير قديمة
+        positive: positiveCash, negative: negativeCash,
+      };
+    },
+
+    /* ===== Migration helper: legacy data من قبل الإصلاح ===== */
+    _migrateIfLegacy(p) {
+      if (p.opening_cash !== undefined && p.opening_gold !== undefined) return p;
+      // قديم: عنده opening (رقم) و transactions [{type:in/out, amount}]
+      const newP = { ...p };
+      newP.opening_cash = num(p.opening || 0);
+      newP.opening_gold = emptyGoldMap();
+      newP.transactions = (p.transactions || []).map(t => {
+        if (t.kind) return t; // already new
+        return {
+          id: t.id,
+          date: t.date,
+          kind: "cash",
+          direction: t.type === "in" ? "in" : "out",
+          amount: num(t.amount),
+          payment_method: "cash",
+          ref: t.ref || "",
+          note: t.note || "",
+        };
+      });
+      newP.type = newP.type || "regular";
+      newP.active = newP.active !== false;
+      delete newP.opening;
+      store.update(p.id, newP);
+      return newP;
+    },
+    migrate() {
+      for (const p of store.all()) this._migrateIfLegacy(p);
+    },
   };
 }
-export const suppliers = makePartyStore(keys.suppliers);
+export const suppliers = makePartyStore(keys.suppliers, "supplier");
+export const customers = makePartyStore(keys.customers, "customer");
 
 /* ===== Bank & Cash Accounts ===== */
 const accountsStore = makeStore(keys.bankCash);

@@ -61,7 +61,8 @@ function buildLedgerTiles() {
 
   const tiles = [
     { href: "#/daily",        icon: "📓", title: "دفتر اليومية",        desc: "حركات الذهب والنقد اليومية" },
-    { href: "#/suppliers",    icon: "🤝", title: "دفتر الموردين",       desc: "حسابات الموردين ومشترياتهم" },
+    { href: "#/suppliers",    icon: "🤝", title: "دفتر الموردين",       desc: "نقد + ذهب بالأعيرة" },
+    { href: "#/customers",    icon: "👥", title: "دفتر العملاء",        desc: "البيع الآجل والمتابعة" },
     { href: "#/bank-cash",    icon: "🏦", title: "دفتر البنك والصندوق", desc: "حركات البنك والصندوق النقدي" },
     { href: "#/expenses",     icon: "💸", title: "دفتر المصاريف",       desc: "مصاريف تشغيلية وإدارية" },
     { href: "#/advances",     icon: "📕", title: "دفتر السلف",          desc: "سلف نقدية وذهبية للموظفين" },

@@ -1,7 +1,7 @@
 /**
  * pages/settings.js — إعدادات المحل + إنشاء فاتورة جديدة
  */
-import { settings, invoices } from "../db.js";
+import { settings, invoices, customers } from "../db.js";
 import {
   el, money, todayISO, toast, openModal, field,
   emptyState, pageHead,
@@ -112,7 +112,7 @@ export function renderSettings(container) {
 }
 
 function openInvoiceForm(onDone) {
-  const cusList = [];
+  const cusList = customers.all();
   const f = {
     date: todayISO(),
     customer_id: "",
@@ -132,7 +132,7 @@ function openInvoiceForm(onDone) {
       const cusSel = el("select", { class: "input",
         onchange: (e) => {
           f.customer_id = e.target.value;
-          const c = null; // customers ledger removed
+          const c = customers.byId(f.customer_id);
           if (c) { f.customer_name = c.name; f.customer_phone = c.phone || ""; }
           renderForm();
         }});
