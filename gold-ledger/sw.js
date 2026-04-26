@@ -3,7 +3,7 @@
  * Cache-first strategy للملفات الأساسية لضمان العمل دون اتصال.
  */
 
-const VERSION = "v6";
+const VERSION = "v7";
 const CACHE = "gold-ledger-" + VERSION;
 
 const CORE_ASSETS = [
@@ -63,7 +63,24 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Cache-first for same-origin assets; network fallback + cache update
+  // Network-first for JS/CSS (so dev updates propagate)، cache-first للأيقونات والخطوط
+  const isCode = url.pathname.endsWith(".js") || url.pathname.endsWith(".css") || url.pathname.endsWith(".webmanifest");
+  if (isCode) {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res && res.status === 200 && url.origin === location.origin) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(req, copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match(req))
+    );
+    return;
+  }
+
+  // Cache-first for static assets (icons, images)
   event.respondWith(
     caches.match(req).then((cached) => {
       const fetchPromise = fetch(req)
